@@ -10,7 +10,186 @@
 □ 도구 2개 이상 사용
 □ 동일한 워크플로우 구조
 □ 비교 분석 보고서 (5개 이상 비교 항목)
+자동화 도구 비교 분석 보고서
+Make vs Zapier — Google Form 기반 자동화 워크플로우 구현 비교
 
+1. 개요
+항목	내용
+프로젝트명	자동화 도구 비교 구현
+비교 도구	Make (구 Integromat) vs Zapier
+구현 워크플로우	Google Form 응답 기반 점수 분기 자동화 + Discord 알림 연동
+분기 조건	점수 ≥ 80점 (합격 그룹) / 점수 < 80점 (불합격 그룹)
+2. 구현 워크플로우 설명
+공통 시나리오 구조
+code
+📋 복사
+[Google Form 제출]
+        ↓
+  점수 조건 분기
+   ↙           ↘
+80점 이상      80점 미만
+(합격 그룹)   (불합격 그룹)
+        ↓           ↓
+  Discord 알림  Discord 알림
+Google Form으로 응답이 제출되면, 점수 필드를 기준으로 두 그룹을 자동 분류하고 각 그룹에 맞는 Discord 메시지를 자동 전송하는 워크플로우를 Make와 Zapier로 각각 구현하였다.
+
+3. 도구별 구현 방식
+3-1. Make
+UI 구조: 캔버스형 — 모듈을 자유롭게 배치하고 연결선으로 흐름 구성
+
+구현 흐름:
+
+code
+📋 복사
+Google Forms (Watch Responses)
+        ↓
+   Router 모듈
+   ↙              ↘
+Filter (≥ 80)    Filter (< 80)
+   ↓                  ↓
+Discord (합격     Discord (불합격
+ 메시지 전송)      메시지 전송)
+핵심 설정:
+
+Watch Responses 모듈로 폼 응답 실시간 감지
+Router 모듈 1개로 두 경로 동시 분기
+각 경로에 Filter 조건 개별 설정
+경로 1: {{score}} >= 80
+경로 2: {{score}} < 80
+Discord 모듈에서 Webhook URL 연결 후 메시지 템플릿 작성
+3-2. Zapier
+UI 구조: 선형 단계형 — Trigger → Filter → Action 순서로 구성
+
+구현 흐름:
+
+code
+📋 복사
+[Zap 1 — 합격 그룹]
+Trigger: Google Forms (New Response)
+   ↓
+Filter: Score ≥ 80
+   ↓
+Action: Discord (합격 메시지 전송)
+
+[Zap 2 — 불합격 그룹]
+Trigger: Google Forms (New Response)
+   ↓
+Filter: Score < 80
+   ↓
+Action: Discord (불합격 메시지 전송)
+핵심 설정:
+
+New Response in Spreadsheet 트리거로 폼 응답 감지
+Filter 스텝에서 드롭다운으로 조건 설정
+조건 불충족 시 해당 Zap 자동 중단
+Discord 액션에서 Webhook 또는 Bot으로 메시지 전송
+4. Discord 연동 워크플로우 설계
+4-1. Discord Webhook 설정 방법
+code
+📋 복사
+Discord 서버 → 채널 설정 → 연동 → 웹후크 → 새 웹후크 생성
+→ Webhook URL 복사
+4-2. Make — Discord 연동 설계
+단계	설정 내용
+모듈 선택	Discord > Send a Message via Webhook
+Webhook URL	Discord에서 복사한 URL 입력
+합격 메시지	✅ {{이름}}님, 점수: {{점수}}점 — 합격입니다!
+불합격 메시지	❌ {{이름}}님, 점수: {{점수}}점 — 재도전을 응원합니다!
+전송 채널	Webhook 생성 시 지정한 채널로 자동 전송
+Make 설계 흐름 (Discord 포함 전체):
+
+code
+📋 복사
+[Google Forms - Watch Responses]
+            ↓
+        [Router]
+       ↙         ↘
+  [Filter]      [Filter]
+  score ≥ 80    score < 80
+       ↓              ↓
+[Discord Webhook] [Discord Webhook]
+ "합격 메시지"    "불합격 메시지"
+4-3. Zapier — Discord 연동 설계
+단계	설정 내용
+Action 앱	Discord
+연동 방식	Webhook URL 또는 Discord Bot 연결
+합격 메시지	✅ {{이름}}님, 점수: {{점수}}점 — 합격입니다!
+불합격 메시지	❌ {{이름}}님, 점수: {{점수}}점 — 재도전을 응원합니다!
+전송 채널	Webhook 생성 시 지정한 채널로 자동 전송
+Zapier 설계 흐름 (Discord 포함 전체):
+
+code
+📋 복사
+[Zap 1]
+Google Forms (New Response)
+        ↓
+Filter: Score ≥ 80
+        ↓
+Discord: "✅ 합격 메시지 전송"
+
+[Zap 2]
+Google Forms (New Response)
+        ↓
+Filter: Score < 80
+        ↓
+Discord: "❌ 불합격 메시지 전송"
+4-4. Discord 전송 메시지 예시
+합격 그룹 메시지:
+
+code
+📋 복사
+✅ [합격 알림]
+이름: 홍길동
+점수: 92점
+결과: 합격입니다! 수고하셨습니다 🎉
+불합격 그룹 메시지:
+
+code
+📋 복사
+❌ [재응시 안내]
+이름: 홍길동
+점수: 65점
+결과: 아쉽지만 재도전을 응원합니다 💪
+5. 비교 분석
+5-1. 주요 항목별 비교표 (5가지 이상)
+비교 항목	Make	Zapier
+① UI 구조	캔버스형 자유 배치	선형 단계형 (Step by Step)
+② 학습 난이도	중~상 (초기 진입 장벽 있음)	하~중 (직관적, 빠른 적응)
+③ 분기 처리 방식	Router 1개로 단일 시나리오 내 다중 분기	조건별 Zap을 각각 분리하여 구성
+④ 조건 설정 방식	수식 직접 입력 (>=, AND, OR 등)	드롭다운 선택 방식 (코드 불필요)
+⑤ 자유도	높음 (복잡한 로직, 데이터 가공 가능)	보통 (단순 자동화에 최적화)
+⑥ 직관성	보통 (학습 후 강력함 발휘)	높음 (누구나 바로 사용 가능)
+⑦ 무료 플랜	월 1,000 operations	월 100 tasks
+⑧ 지원 앱 수	1,000개 이상	6,000개 이상
+⑨ Discord 연동	Webhook 모듈 직접 구성	Discord 앱 또는 Webhook 액션
+⑩ 복잡 워크플로우 관리	시나리오 1개로 통합 관리	Zap 여러 개로 분산 관리
+5-2. 사용 경험 기반 분석
+✅ Make — "자유도 높은 세밀한 설계"
+Make는 캔버스 위에 모듈을 배치하고 연결하는 방식으로, 워크플로우를 시각적으로 설계하는 느낌이 강하다. Router 하나로 여러 분기를 한 시나리오에서 처리할 수 있어 복잡한 로직 구현에 유리하다. 변수 매핑, 데이터 가공, 조건 수식 등을 직접 다룰 수 있어 개발자 친화적인 도구에 가깝다. 단, 처음 접하는 사용자에게는 모듈 개념과 데이터 흐름 이해가 선행되어야 하므로 진입 장벽이 존재한다.
+
+✅ Zapier — "직관적인 단계별 자동화"
+Zapier는 Trigger → Filter → Action의 선형 구조로, 누구나 쉽게 자동화 흐름을 이해하고 구성할 수 있다. 각 단계가 명확히 구분되어 있어 실수가 적고 유지보수가 쉽다. 조건 설정도 드롭다운 방식이라 별도 학습 없이 바로 사용 가능하다. 다만, 복잡한 분기 로직은 여러 Zap으로 분리해야 하므로 관리 포인트가 늘어나는 단점이 있다.
+
+6. 결론 및 도구 선택 가이드
+상황	추천 도구
+자동화 처음 입문	✅ Zapier
+단순 알림 / 메시지 전송 자동화	✅ Zapier
+조건 분기가 복잡한 경우	✅ Make
+데이터 가공이 필요한 경우	✅ Make
+다수의 앱 연동이 필요한 경우	✅ Zapier
+비용 효율을 중시하는 경우	✅ Make
+Discord 알림 등 단순 연동	✅ Zapier
+분기별 Discord 메시지 차별화	✅ Make
+7. 총평
+두 도구 모두 Google Form 트리거 → 점수 기반 분기 → Discord 알림이라는 동일한 워크플로우를 성공적으로 구현할 수 있었다.
+
+Make는 "내가 원하는 대로 설계하는 자동화"
+Zapier는 "쉽고 빠르게 연결하는 자동화"
+
+자동화 도구 선택은 사용자의 기술 수준과 워크플로우의 복잡도에 따라 달라지며, 두 도구를 상황에 맞게 병행 활용하는 것도 좋은 전략이다.
+
+작성일: 2025년
+비교 기준: 무료 플랜 기능 범위 내 구현
 프로젝트 2 추가
 □ 반복 업무 1개 정의
 □ 도구 선정 이유 작성
